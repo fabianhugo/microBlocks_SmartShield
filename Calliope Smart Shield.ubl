@@ -16,18 +16,11 @@ spec ' ' 'SmartShield_update' 'Smart Shield update'
 spec 'r' 'SmartShield_buttons' 'Smart Shield buttons' 
 spec 'r' 'SmartShield_ping' 'Smart Shield ping' 
 spec 'r' 'SmartShield_debug_header' 'Smart Shield debug header' 
-spec 'r' 'SmartShield_dc' 'Smart Shield dc' 
-spec 'r' 'SmartShield_dc_raw' 'Smart Shield dc raw' 
-spec 'r' 'SmartShield_dc_up' 'Smart Shield dc up' 
 spec ' ' 'SmartShield_reset' 'Smart Shield reset' 
-spec 'r' 'SmartShield_scan_high_pins' 'Smart Shield scan high pins from _ to _' 'num num' 0 30
-spec ' ' 'SmartShield_set_pins' 'Smart Shield set pins dc _ rst _' 'num num' 8 17
-spec 'r' 'SmartShield_pin_echo' 'Smart Shield pin echo _' 'num' 8
-spec ' ' 'SmartShield_pin_blink' 'Smart Shield pin blink _' 'num' 8
-spec 'r' 'SmartShield_test' 'Smart Shield test' 
 spec 'r' 'SmartShield_debug_bytes' 'Smart Shield debug bytes _' 'num' 16
 spec 'r' 'SmartShield_debug_bytes_from' 'Smart Shield debug bytes from _ count _' 'num num' 1 16
 spec ' ' 'SmartShield_request_buttons' 'Smart Shield request buttons' 
+spec ' ' 'SmartShield_update_buttons' 'Smart Shield update buttons'
 spec ' ' 'SmartShield_set_flow_inverted' 'Smart Shield flow inverted _' 'bool' false
 spec 'r' 'SmartShield_test_brightness' 'Smart Shield test brightness _' 'num' 128
 spec 'r' 'SmartShield_test_single_pixel' 'Smart Shield test single pixel' 
@@ -191,7 +184,7 @@ to '_ss_process_response' {
 
 to '_ss_wait_ready' {
   local 'start' (millisOp)
-  repeatUntil ((_ss_dc_ready) || ((millisOp - start) > 100)) {
+  repeatUntil ((_ss_dc_ready) or ((millisOp - start) > 100)) {
     waitMillis 1
   }
   if (not (_ss_dc_ready)) {
@@ -359,21 +352,6 @@ to SmartShield_debug_header {
   return ('[data:makeList]' crc size flags service_num service_cmd)
 }
 
-to SmartShield_dc {
-  _ss_init_buffers
-  return (digitalReadOp (_ss_pin_dc) 'down')
-}
-
-to SmartShield_dc_raw {
-  _ss_init_buffers
-  return (digitalReadOp (_ss_pin_dc))
-}
-
-to SmartShield_dc_up {
-  _ss_init_buffers
-  return (digitalReadOp (_ss_pin_dc) 'up')
-}
-
 to SmartShield_reset {
   _ss_init_buffers
   digitalWriteOp (_ss_pin_rst) false
@@ -382,50 +360,8 @@ to SmartShield_reset {
   waitMillis 500
 }
 
-to SmartShield_scan_high_pins fromPin toPin {
-  local 'result' ('[data:makeList]')
-  local 'pin' fromPin
-  repeatUntil (pin > toPin) {
-    if (digitalReadOp pin) {
-      '[data:addLast]' pin result
-    }
-    pin += 1
-  }
-  return result
-}
 
-to SmartShield_set_pins dcPin rstPin {
-  _ss_init_buffers
-  _ss_pin_dc_val = dcPin
-  _ss_pin_rst_val = rstPin
-}
 
-to SmartShield_pin_echo pin {
-  digitalWriteOp pin (booleanConstant true)
-  waitMillis 5
-  local 'high' (digitalReadOp pin)
-  digitalWriteOp pin (booleanConstant false)
-  waitMillis 5
-  local 'low' (digitalReadOp pin)
-  return ('[data:makeList]' high low)
-}
-
-to SmartShield_pin_blink pin {
-  digitalWriteOp pin (booleanConstant true)
-  waitMillis 200
-  digitalWriteOp pin (booleanConstant false)
-  waitMillis 200
-  digitalWriteOp pin (booleanConstant true)
-  waitMillis 200
-  digitalWriteOp pin (booleanConstant false)
-}
-
-to SmartShield_test {
-  digitalWriteOp 1 0
-  sayIt 123
-  waitMillis 1000
-  return 1
-}
 
 to SmartShield_debug_bytes count {
   _ss_init_buffers
@@ -456,6 +392,19 @@ to SmartShield_request_buttons {
   local 'payload' ('[data:newByteArray]' 0)
   _ss_clear_frame
   _ss_push_packet 2 ((_ss_const_cmd_get_reg) + (_ss_const_reg_reading)) payload
+  _ss_transmit_frame
+}
+
+to SmartShield_update_buttons {
+  _ss_init_buffers
+  // Send button request
+  local 'payload' ('[data:newByteArray]' 0)
+  _ss_clear_frame
+  _ss_push_packet 2 ((_ss_const_cmd_get_reg) + (_ss_const_reg_reading)) payload
+  _ss_transmit_frame
+  // Send another frame to receive the response
+  waitMillis 5
+  _ss_clear_frame
   _ss_transmit_frame
 }
 
